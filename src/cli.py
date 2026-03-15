@@ -6,10 +6,11 @@ from typing import Any
 
 import src.scraper  # noqa: F401 — スクレイパー自動登録のためインポート
 from src.scraper.registry import get_scraper, list_sources
-from src.sheets.reader import read_work_sheet, read_sheet1
+from src.sheets.reader import read_work_sheet, read_sheet1, read_portal_sheet
 from src.sheets.formatter import to_json as sheets_to_json, to_tsv
 from src.contacts.finder import find_contact_url
 from src.merge.dedup import merge_preview as do_merge_preview, merge as do_merge
+from src.portal.tracker import PortalTracker
 
 NOT_IMPLEMENTED_RESPONSE: dict[str, Any] = {"status": "not_implemented"}
 
@@ -84,6 +85,65 @@ def handle_merge(args: argparse.Namespace) -> None:
                 for r in new_records
             ],
         })
+
+
+def handle_check_portals(args: argparse.Namespace) -> None:
+    """ポータル管理シートを読み込み、クロール対象を判定。JSON出力"""
+    portal_records = read_portal_sheet(args.portal_csv)
+    tracker = PortalTracker(portal_records)
+
+    all_records = tracker.get_all()
+    targets = tracker.get_crawl_targets()
+    skipped = [r for r in all_records if r.status == "完了"]
+    error_count = sum(1 for r in all_records if r.status == "エラー")
+    completed_count = len(skipped)
+
+    _output({
+        "status": "success",
+        "total": len(all_records),
+        "crawl_targets": len(targets),
+        "completed": completed_count,
+        "error": error_count,
+        "targets": [
+            {"url": r.url, "name": r.name, "last_page": r.last_page, "status": r.status or "未クロール"}
+            for r in targets
+        ],
+        "skipped": [
+            {"url": r.url, "name": r.name, "status": r.status, "reason": "新規企業なし"}
+            for r in skipped
+        ],
+    })
+
+
+def handle_update_portal(args: argparse.Namespace) -> None:
+    """クロール結果を受け取りポータルステータスを更新。JSON出力"""
+    portal_records = read_portal_sheet(args.portal_csv)
+    tracker = PortalTracker(portal_records)
+
+    updated = tracker.update_after_crawl(
+        url=args.url,
+        name=args.name,
+        company_count=args.company_count,
+        new_count=args.new_count,
+        last_page=args.last_page,
+    )
+    _output({
+        "status": "success",
+        "portal": dataclasses.asdict(updated),
+    })
+
+
+def handle_portal_error(args: argparse.Namespace) -> None:
+    """ポータルのエラーを記録。JSON出力"""
+    portal_records = read_portal_sheet(args.portal_csv)
+    tracker = PortalTracker(portal_records)
+
+    name = getattr(args, "name", "") or ""
+    updated = tracker.mark_error(url=args.url, name=name)
+    _output({
+        "status": "success",
+        "portal": dataclasses.asdict(updated),
+    })
 
 
 def handle_list_sources(args: argparse.Namespace) -> None:
@@ -255,6 +315,90 @@ def build_parser() -> argparse.ArgumentParser:
         help="新規レコードの最大件数（省略時は全件）",
     )
     merge_parser.set_defaults(func=handle_merge)
+
+    # check-portals
+    check_portals_parser = subparsers.add_parser(
+        "check-portals",
+        help="ポータル管理シートを読み込み、クロール対象を判定。JSON出力",
+    )
+    check_portals_parser.add_argument(
+        "--portal-csv",
+        required=True,
+        metavar="<csv>",
+        help="ポータル管理シートCSVファイルパス",
+    )
+    check_portals_parser.set_defaults(func=handle_check_portals)
+
+    # update-portal
+    update_portal_parser = subparsers.add_parser(
+        "update-portal",
+        help="クロール結果を受け取りポータルステータスを更新。JSON出力",
+    )
+    update_portal_parser.add_argument(
+        "--portal-csv",
+        required=True,
+        metavar="<csv>",
+        help="ポータル管理シートCSVファイルパス",
+    )
+    update_portal_parser.add_argument(
+        "--url",
+        required=True,
+        metavar="<url>",
+        help="ポータルURL",
+    )
+    update_portal_parser.add_argument(
+        "--name",
+        default="",
+        metavar="<name>",
+        help="ポータル名",
+    )
+    update_portal_parser.add_argument(
+        "--company-count",
+        type=int,
+        required=True,
+        metavar="<n>",
+        help="取得企業数",
+    )
+    update_portal_parser.add_argument(
+        "--new-count",
+        type=int,
+        required=True,
+        metavar="<n>",
+        help="新規企業数",
+    )
+    update_portal_parser.add_argument(
+        "--last-page",
+        type=int,
+        required=True,
+        metavar="<n>",
+        help="最終ページ番号",
+    )
+    update_portal_parser.set_defaults(func=handle_update_portal)
+
+    # portal-error
+    portal_error_parser = subparsers.add_parser(
+        "portal-error",
+        help="ポータルのエラーを記録。JSON出力",
+    )
+    portal_error_parser.add_argument(
+        "--portal-csv",
+        required=True,
+        metavar="<csv>",
+        help="ポータル管理シートCSVファイルパス",
+    )
+    portal_error_parser.add_argument(
+        "--url",
+        required=True,
+        metavar="<url>",
+        help="ポータルURL",
+    )
+    portal_error_parser.add_argument(
+        "--name",
+        default="",
+        metavar="<name>",
+        help="ポータル名（省略可）",
+    )
+    portal_error_parser.set_defaults(func=handle_portal_error)
 
     # list-sources
     list_sources_parser = subparsers.add_parser(
