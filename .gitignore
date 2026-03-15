@@ -2,8 +2,10 @@
 .env
 .env.*
 
-# Claude Code local settings
-.claude/
+# Claude Code - ローカル専用設定と環境変数を除外
+.claude/settings.local.json
+.claude/.env
+.claude/.env.*
 
 # Playwright MCP local settings
 .playwright-mcp/
