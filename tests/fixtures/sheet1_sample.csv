@@ -1,0 +1,3 @@
+企業名,フォーム送信,URL,お問い合わせURL,面談について,概要,メモ,正規化企業名,正規化URL
+既存株式会社,TRUE,https://existing.co.jp,https://existing.co.jp/contact,A,既存企業です,メモ1,既存,existing.co.jp
+株式会社サンプル,FALSE,https://sample.co.jp,https://sample.co.jp/form,,,,サンプル,sample.co.jp

@@ -1,0 +1,4 @@
+企業名,フォーム送信,URL,お問い合わせURL,URL取得状態,ソース,正規化企業名,重複フラグ
+株式会社テストA,FALSE,https://test-a.co.jp,https://test-a.co.jp/contact,URL済,ses_rengo,テストA,FALSE
+テストB株式会社,FALSE,https://test-b.co.jp,,取得失敗,ses_rengo,テストB,FALSE
+（株）テストC,FALSE,https://test-c.co.jp,https://test-c.co.jp/inquiry,URL済,willof,テストC,TRUE
